@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Buscar Admitidos Sanidad</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+      color: #fff;
+      padding: 20px;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    main {
+      background: #ffffffdd;
+      color: #222;
+      padding: 30px 25px;
+      border-radius: 15px;
+      box-shadow: 0 12px 30px rgba(37, 117, 252, 0.3);
+      max-width: 750px;
+      width: 90%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-weight: 700;
+      color: #1a237e;
+    }
+
+    label {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-right: 10px;
+      color: #1a237e;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      padding: 10px 15px;
+      font-size: 1rem;
+      border: 2px solid #2575fc;
+      border-radius: 8px;
+      transition: border-color 0.3s ease;
+      margin: 10px 0 20px 0;
+      width: 100%;
+      max-width: 375px;
+    }
+
+    input[type="text"]:focus,
+    input[type="file"]:focus {
+      border-color: #6a11cb;
+      outline: none;
+      box-shadow: 0 0 10px #6a11cb;
+    }
+
+    button {
+      background-color: #2575fc;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 25px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.15s ease;
+      margin-top: 10px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    button:disabled {
+      background-color: #a1b2ff;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button:not(:disabled):hover {
+      background-color: #1a47d8;
+      transform: scale(1.05);
+    }
+
+    h2 {
+      margin-top: 35px;
+      margin-bottom: 15px;
+      font-weight: 700;
+      color: #1a237e;
+      align-self: flex-start;
+      width: 100%;
+    }
+
+    #resultado {
+      background: #f7f9ff;
+      border-radius: 12px;
+      padding: 20px;
+      border: 2px solid #2575fc;
+      max-height: 380px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #1a237e;
+      width: 100%;
+      box-shadow: inset 0 0 10px #6a11cb33;
+    }
+
+    @media (max-width: 480px) {
+      input[type="text"],
+      input[type="file"],
+      button {
+        max-width: 100%;
+      }
+
+      main {
+        padding: 20px 15px;
+        width: 90%;
+      }
+
+      #resultado {
+        max-height: 300px;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Buscar admitidos por Departamento Consellería de Sanidad</h1>
+
+    <label for="departamentoInput">Departamento a buscar:</label>
+    <input id="departamentoInput" type="text" value="DEPARTAMENTO DE SALUD DE VALENCIA-CLINICO-MALVARROSA" />
+
+    <input type="file" id="fileInput" accept="application/pdf" />
+
+    <button id="buscarBtn" disabled>Buscar</button>
+
+    <h2>Resultado:</h2>
+    <button id="copiarBtn" disabled>Copiar lista al portapapeles</button>
+    <pre id="resultado"></pre>
+  </main>
+
+  <script>
+    const departamentoInput = document.getElementById('departamentoInput');
+    const fileInput = document.getElementById('fileInput');
+    const buscarBtn = document.getElementById('buscarBtn');
+    const copiarBtn = document.getElementById('copiarBtn');
+    const resultadoPre = document.getElementById('resultado');
+
+    function validarFormulario() {
+      buscarBtn.disabled = !(departamentoInput.value.trim() && fileInput.files.length > 0);
+    }
+
+    departamentoInput.addEventListener('input', validarFormulario);
+    fileInput.addEventListener('change', validarFormulario);
+
+    async function pdfToText(pdfData) {
+      const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const strings = content.items.map(item => item.str);
+        fullText += strings.join('\n') + '\n';
+      }
+      return fullText;
+    }
+
+    function extraerPorDepartamento(texto, departamentoBuscado) {
+      const lineas = texto.split('\n').map(l => l.trim()).filter(l => l !== '');
+      const personasPorCentro = {};
+
+      for (let i = 0; i < lineas.length; i++) {
+        if (/^\d+$/.test(lineas[i])) {
+          let pos = i;
+          let proceso = lineas[pos + 1];
+          let turno = lineas[pos + 2];
+          let dni = lineas[pos + 3];
+          let nombre = lineas[pos + 4];
+          let codigoCentroIndex = pos + 5;
+
+          while (codigoCentroIndex < lineas.length && !/^\d+$/.test(lineas[codigoCentroIndex])) {
+            nombre += ' ' + lineas[codigoCentroIndex];
+            codigoCentroIndex++;
+          }
+
+          let codigoCentro = lineas[codigoCentroIndex];
+          let asi = lineas[codigoCentroIndex + 1];
+          let departamento = lineas[codigoCentroIndex + 2];
+          let centro = lineas[codigoCentroIndex + 3];
+
+          if (departamento && departamento.toLowerCase().includes(departamentoBuscado.toLowerCase())) {
+            if (!personasPorCentro[centro]) {
+              personasPorCentro[centro] = new Set();
+            }
+            personasPorCentro[centro].add(nombre.trim());
+          }
+
+          i = codigoCentroIndex + 3;
+        }
+      }
+
+      const resultado = {};
+      for (const centro in personasPorCentro) {
+        resultado[centro] = Array.from(personasPorCentro[centro]);
+      }
+      return resultado;
+    }
+
+    function generarTexto(personasPorCentro) {
+      const bloques = [];
+      let total = 0;
+
+      for (const centro in personasPorCentro) {
+        const lista = personasPorCentro[centro];
+        total += lista.length;
+        const numerada = lista.map((nombre, i) => `${i + 1}. ${nombre}`).join('\n');
+        bloques.push(`== ${centro} ==\n\n${numerada}\n`);
+      }
+
+      return `Se encontraron ${total} personas en el departamento indicado:\n\n` + bloques.join('\n\n\n');
+    }
+
+    buscarBtn.addEventListener('click', async () => {
+      buscarBtn.disabled = true;
+      copiarBtn.disabled = true;
+      resultadoPre.textContent = 'Procesando PDF, por favor espera...';
+
+      const departamentoBuscado = departamentoInput.value.trim();
+      const file = fileInput.files[0];
+      if (!file || !departamentoBuscado) {
+        resultadoPre.textContent = 'Debes subir un PDF y escribir un departamento.';
+        buscarBtn.disabled = false;
+        return;
+      }
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const texto = await pdfToText(arrayBuffer);
+
+        const personasPorCentro = extraerPorDepartamento(texto, departamentoBuscado);
+        const resultadoTexto = generarTexto(personasPorCentro);
+
+        resultadoPre.textContent = resultadoTexto;
+        copiarBtn.disabled = false;
+
+        copiarBtn.onclick = () => {
+          navigator.clipboard.writeText(resultadoTexto)
+            .then(() => alert('Texto copiado al portapapeles'))
+            .catch(() => alert('Error al copiar'));
+        };
+      } catch (error) {
+        resultadoPre.textContent = 'Error procesando el PDF. Intenta con otro archivo.';
+      } finally {
+        buscarBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+
+</html>
